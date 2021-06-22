@@ -169,15 +169,15 @@ phi0 = .1
 phi1 = 50
 C11,C12,C44 = 169.3097, 87.2201, 41.0448 # moduli for copper
 Cinv11,Cinv12,Cinv44 = 1/110, -0.34/110, 2*(1+0.34)/110 
-P0 = np.zeros((3)) # applied load
-Fgb12 = np.identity((3)) # grain boundary shear
+P0 = np.zeros((3,3)) # applied load
+Fgb12 = np.zeros((3,3)) # grain boundary shear
 Fgb1 = np.identity((3)) # eigenstrain for grain 1
 Fgb2 = np.identity((3)) # eigenstrain for grain 2
 F0 = np.identity((3))
-F0[1,1] = 0 # strain
+F0[1,1] = .8 # strain
 Fgb12[0,1] = 1
 a12 = 1
-th_g = np.radians(30/2)
+th_g = np.radians(10/2)
 # yield at 1/8*phi0*fgb12^[0^(-1)]Cinv 
 
 tfin = 5
@@ -249,19 +249,26 @@ Ccinv2 = np.matmul(np.matmul(np.transpose(R2),Cinv),R2) # grain 2
 #Ccinv2[5,1] = -Ccinv2[5,1]
 #Ccinv2[5,0] = -Ccinv2[5,0]
 
+
+o = np.identity((3))
+o[1,1] = 0 # strain
+o[0,1] = .5
+
 def CalF(sig,mat):
     # calculates strain from a given sigma
-    sig = np.identity((3))
-    sig[0,0] = mat[0,0]*sig[0,0] + mat[0,1]*sig[1,1]  + mat[0,2]*sig[2,2] + 1/2*(mat[0,3]*sig[1,2] + mat[0,4]*sig[2,0] + mat[0,5]*sig[0,1])
-    sig[1,1] = mat[1,0]*sig[0,0] + mat[1,1]*sig[1,1]  + mat[1,2]*sig[2,2] + 1/2*(mat[1,3]*sig[1,2] + mat[1,4]*sig[2,0] + mat[1,5]*sig[0,1])
-    sig[2,2] = mat[2,0]*sig[0,0] + mat[2,1]*sig[1,1]  + mat[2,2]*sig[2,2] + 1/2*(mat[2,3]*sig[1,2] + mat[2,4]*sig[2,0] + mat[2,5]*sig[0,1])
-    sig[1,2] = mat[3,0]*sig[0,0] + mat[3,1]*sig[1,1]  + mat[3,2]*sig[2,2] + 1/2*(mat[3,3]*sig[1,2] + mat[3,4]*sig[2,0] + mat[3,5]*sig[0,1])
-    sig[0,2] = mat[4,0]*sig[0,0] + mat[4,1]*sig[1,1]  + mat[4,2]*sig[2,2] + 1/2*(mat[4,3]*sig[1,2] + mat[4,4]*sig[2,0] + mat[4,5]*sig[0,1])
-    sig[0,1] = mat[5,0]*sig[0,0] + mat[5,1]*sig[1,1]  + mat[5,2]*sig[2,2] + 1/2*(mat[5,3]*sig[1,2] + mat[5,4]*sig[2,0] + mat[5,5]*sig[0,1])
-    sig[1,0] = sig[0,1]
-    sig[2,1] = sig[1,2]
-    sig[0,2] = sig[2,0]
-    return sig
+    F = np.zeros((3,3))
+    
+    F[0,0] = mat[0,0]*sig[0,0] + mat[0,1]*sig[1,1]  + mat[0,2]*sig[2,2] + 1/2*(mat[0,3]*sig[1,2] + mat[0,4]*sig[2,0] + mat[0,5]*sig[0,1])
+    F[1,1] = mat[1,0]*sig[0,0] + mat[1,1]*sig[1,1]  + mat[1,2]*sig[2,2] + 1/2*(mat[1,3]*sig[1,2] + mat[1,4]*sig[2,0] + mat[1,5]*sig[0,1])
+    F[2,2] = mat[2,0]*sig[0,0] + mat[2,1]*sig[1,1]  + mat[2,2]*sig[2,2] + 1/2*(mat[2,3]*sig[1,2] + mat[2,4]*sig[2,0] + mat[2,5]*sig[0,1])
+    F[1,2] = mat[3,0]*sig[0,0] + mat[3,1]*sig[1,1]  + mat[3,2]*sig[2,2] + 1/2*(mat[3,3]*sig[1,2] + mat[3,4]*sig[2,0] + mat[3,5]*sig[0,1])
+    F[0,2] = mat[4,0]*sig[0,0] + mat[4,1]*sig[1,1]  + mat[4,2]*sig[2,2] + 1/2*(mat[4,3]*sig[1,2] + mat[4,4]*sig[2,0] + mat[4,5]*sig[0,1])
+    F[0,1] = mat[5,0]*sig[0,0] + mat[5,1]*sig[1,1]  + mat[5,2]*sig[2,2] + 1/2*(mat[5,3]*sig[1,2] + mat[5,4]*sig[2,0] + mat[5,5]*sig[0,1])
+    F[1,0] = F[0,1]
+    F[2,1] = F[1,2]
+    F[0,2] = F[2,0]
+    return F
+
 def CalSig(F,mat):
     # calculates sigma from a given strain
     
@@ -283,7 +290,7 @@ def CalA(grain, v1, v2):
     if(grain == 1):
         g = np.matmul(Ccinv2,Cc)
         
-        G = CalSig(CalSig(Fgb1,Cc),Ccinv2)
+        G = CalF(CalSig(Fgb1,Cc),Ccinv2)
         gam = inv(np.add(v1*np.identity(6) , v2*g))
         temp = (Vtot*F0 + (-Fgb2 + G)*v2)
         Fstar = CalSig(temp,gam) 
@@ -295,7 +302,7 @@ def CalA(grain, v1, v2):
     elif(grain == 2):
         g = np.matmul(Ccinv,Cc2)
         
-        G = CalSig(CalSig(Fgb2,Cc2),Ccinv)
+        G = CalF(CalSig(Fgb2,Cc2),Ccinv)
         gam = inv(np.add(v2*np.identity(6) , v1*g))
         temp = (Vtot*F0 + (-Fgb1 + G)*v1)
         Fstar = CalSig(temp,gam)
@@ -306,6 +313,8 @@ def CalA(grain, v1, v2):
                 A = A +  0.5*F[i,j]*P[i,j]
     return A
     
+# oo = CalF(o,Cinv)
+# print(oo)
 # set up rotation matrix
 theta = np.radians(0)
 c, s = np.cos(theta), np.sin(theta)
@@ -358,7 +367,7 @@ for t in range(tt):
     # stress strain curve
     
     g = np.matmul(Ccinv2,Cc)
-    G = CalSig(CalSig(Fgb1,Cc),Ccinv2)
+    G = CalF(CalSig(Fgb1,Cc),Ccinv2)
     gam = inv(np.add(V1[t]*np.identity(6) , V2[t]*g))
     temp = (Vtot*F0 + (-Fgb2 + G)*V2[t])
     Fstar = CalSig(temp,gam) 
@@ -366,7 +375,7 @@ for t in range(tt):
     P1 = CalSig(F1,Cc) 
     
     g = np.matmul(Ccinv,Cc2)
-    G = CalSig(CalSig(Fgb2,Cc2),Ccinv)
+    G = CalF(CalSig(Fgb2,Cc2),Ccinv)
     gam = inv(np.add(V1[t]*np.identity(6) , V2[t]*g))
     temp = (Vtot*F0 + (-Fgb1 + G)*V1[t])
     Fstar = CalSig(temp,gam)
@@ -593,4 +602,5 @@ plt.xlabel('Time')
 plt.ylabel('Change in h')
 plt.grid(alpha=.7,linestyle='-.')        
 plt.show()
+
 
