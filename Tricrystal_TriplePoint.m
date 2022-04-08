@@ -74,6 +74,9 @@ m = 20;
 phi_h1 = .5;
 phi_h2 = 10;
 vol = [V1(1); V3(1); V5(1)];
+
+phi_hs = zeros(tf,3); 
+
 for t = 1:tf
     
     F0(4) = .2*t/tf;
@@ -86,8 +89,10 @@ for t = 1:tf
     phi_h = phi_h1*abs(h13(t))^n + phi_h2*abs(h13(t)*1.6/0.3750)^m;
     dh13 = -1/phi1*(dhpq + phi0 + phi_h);
     dh31 = -1/phi1*(dhqp - phi0 - phi_h);
-    
+
+    phi_hs(t+1,1) = phi_h;
     AA1(t+1) = dhqp;
+
     [dhpq, dhqp] = Gethdot(Fstar,P0,2,vol);
     
     phi_h = phi_h1*abs(h35(t))^n + phi_h2*abs(h35(t)*2.36/0.3750)^m;
@@ -95,6 +100,8 @@ for t = 1:tf
     dh53 = -1/phi1*(dhqp - phi0 - phi_h);
     
     AA2(t+1) = dhqp;
+    phi_hs(t+1,2) = phi_h;
+
     [dhpq, dhqp] = Gethdot(Fstar,P0,3,vol);
     
     phi_h = phi_h1*abs(h51(t))^n + phi_h2*abs(h51(t)*1.1/0.3750)^m;
@@ -102,6 +109,7 @@ for t = 1:tf
     dh15 = -1/phi1*(dhqp - phi0 - phi_h);
     
     AA3(t+1) = dhqp;
+    phi_hs(t+1,3) = phi_h;
 
     if(h13(t) < -3/8/a13 || h13(t) > 3/8/a13)
         dh13 = 0;
@@ -160,11 +168,11 @@ for t = 1:tf
         Cinv(:,:,4) = zeros(9,9);
     end
     if(v(6) < 0)
-        C(:,:,6) = C(:,:,5);
-        Cinv(:,:,6) = Cinv(:,:,5);
-    elseif(v(6) > 0)
         C(:,:,6) = C(:,:,1);
         Cinv(:,:,6) = Cinv(:,:,1);
+    elseif(v(6) > 0)
+        C(:,:,6) = C(:,:,5);
+        Cinv(:,:,6) = Cinv(:,:,5);
     else
         C(:,:,6) = zeros(9,9);
         Cinv(:,:,6) = zeros(9,9);
@@ -234,6 +242,13 @@ plot([1 tf],[1 1]*phi0)
 plot([1 tf],-[1 1]*phi0)
 title('dA^*/dh_{pq}')
 hold off
+figure(6)
+hold on
+plot(phi_hs(:,1))
+plot(phi_hs(:,2))
+plot(phi_hs(:,3))
+title('dA^*/dh_{pq}')
+hold off
         
 function [vol, h] = UpdateVol(dh13,dh35,dh51,dt)
 global N Vtot C Cinv v Fgb F0  a D Aa I
@@ -242,9 +257,10 @@ global N Vtot C Cinv v Fgb F0  a D Aa I
     h35 = dh35*dt;
     h51 = dh51*dt;
     
-    h = [h13; h35; h51];
+    h = [h13; h35; h51]; ha = abs(h);
     Ah = full(adjacency(D,h));
-%     vtest = v; 
+    Aha = full(adjacency(D,ha));
+    vtest = v; 
     counter = 1;
     for i = 2:2:N
        v(i) = v(i) + a(counter)*h(counter); 
@@ -254,11 +270,12 @@ global N Vtot C Cinv v Fgb F0  a D Aa I
     gimal = -Aa' + Aa;
     gimal_p = Aa' + Aa;
     gimal_h = Ah + Ah';
+    gimal_ha = Aha + Aha';
     
-    dV = -1/2*(gimal_h*gimal_p + gimal_h*gimal);
-% dV(2,1) = 1/2*(h13*a(1) + h51*a(3) + h13*(a(1)) + h35*(-a(2))) = h13*a13
-% dV(1,3) = 1/2*(h13*a(2) + h51*a(3) + h13*(a(2)) + h51*(-a(3))) = h13*a35
-% dV(3,2) = 1/2*(h51*a(1) + h35*a(3) + h51*(a(1)) + h35*(-a(3))) = h51*a13
+    dV = -1/2*(gimal_ha*gimal_p + gimal_h*gimal);
+%     dV(2,1) = 1/2*(h13*a(1) + h51*a(3) + h13*(a(1)) + h35*(-a(2))) = h13*a13
+%     dV(1,3) = 1/2*(h13*a(2) + h51*a(3) + h13*(a(2)) + h51*(-a(3))) = h13*a35
+%     dV(3,2) = 1/2*(h51*a(1) + h35*a(3) + h51*(a(1)) + h35*(-a(3))) = h51*a13
     dV = diag(dV);
     counter = 1;
     for i = 1:2:N
@@ -271,10 +288,10 @@ global N Vtot C Cinv v Fgb F0  a D Aa I
 %     vtest(4) = vtest(4) + a(2)*h35;
 %     vtest(6) = vtest(6) + a(3)*h51;
 % 
-%     vtest(1) = vtest(1) - a(1)*(abs(h13) - h13)/2 - a(3)*(abs(h51) + h51)/2;
-%     vtest(3) = vtest(3) - a(1)*(abs(h13) + h13)/2 - a(2)*(abs(h35) - h35)/2;
-%     vtest(5) = vtest(5) - a(2)*(abs(h35) + h35)/2 - a(3)*(abs(h51) - h51)/2;
-    
+%     vtest(1) = vtest(1) - a(1)*(abs(h(1)) - h(1))/2 - a(3)*(abs(h(3)) + h(3))/2;
+%     vtest(3) = vtest(3) - a(1)*(abs(h(1)) + h(1))/2 - a(2)*(abs(h(2)) - h(2))/2;
+%     vtest(5) = vtest(5) - a(2)*(abs(h(2)) + h(2))/2 - a(3)*(abs(h(3)) - h(3))/2;
+%     dv_test = [vtest(1);vtest(3);vtest(5)];
 %   if(v(2) > 0)
 %       v(3) = v(3) - a13*dh13*dt;
 %   elseif(v(2) < 0)
