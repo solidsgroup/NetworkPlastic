@@ -1,5 +1,5 @@
 clear all
-global N Vtot C Cinv v Fgb F0  a13 a35 a51 xi_inv alpha edges a D Aa I
+global N Vtot C Cinv v Fgb F0  a13 a35 a51 xi_inv alpha edges a D Aa I ss tt
 
 N = 6; edges = 3;
 Vtot = 1;
@@ -48,7 +48,7 @@ for i = 1:2:N-edges
 end
 vol = [v(1); v(3); v(5)];
 V0 = vol; V(1,:) = V0;
-phi1 = .006;
+phi1 = 0.006;
 phi0 = 0.2;
 
 stress = zeros(tf,1);
@@ -63,15 +63,16 @@ phi_h1 = .5;
 phi_h2 = 10;
 kappa = [1.6/0.3750; 2.36/0.3750; 1.1/0.3750];
 
+phi_hs = zeros(tf,3); 
 for t = 1:tf
     
-    F0(4) = .5*t/tf;
+    F0(4) = .2*t/tf;
     
     Fstar = FstarAnalytic();
     P0 = GetP0(Fstar);
     for edge = 1:edges
     
-        q = ss(edge); p = tt(edge);
+        q = ss(edge)*2-1; p = tt(edge)*2-1;
         [dFpq, dFqp] = Gethdot(Fstar,P0,edge,vol);
 
         phi_h = phi_h1*abs(h(t,edge))^n + phi_h2*abs(h(t,edge)*kappa(edge))^m;
@@ -79,8 +80,9 @@ for t = 1:tf
         dhqp = -1/phi1*(dFqp - phi0 - phi_h);
 
         AA(t+1,edge) = dFqp;
+        phi_hs(t+1,edge) = phi_h;
 
-        if(h(t,edge) < -V0(q)/a(edge) || h(t,edge) > V0(p)/a(edge))
+        if(h(t,edge) < -V0(ss(edge))/a(edge) || h(t,edge) > V0(tt(edge))/a(edge))
             dhpq = 0;
             dhqp = 0;
         end
@@ -93,21 +95,21 @@ for t = 1:tf
         elseif(dhqp < 0); 
             dhpq = dhqp;
         end
-        m = edge*2;
-        if(v(m) < 0)
-            C(:,:,m) = C(:,:,p);
-            Cinv(:,:,m) = Cinv(:,:,p);
-        elseif(v(m) > 0)
-            C(:,:,m) = C(:,:,q);
-            Cinv(:,:,m) = Cinv(:,:,q);
+        pq = edge*2;
+        if(v(pq) < 0)
+            C(:,:,pq) = C(:,:,p);
+            Cinv(:,:,pq) = Cinv(:,:,p);
+        elseif(v(pq) > 0)
+            C(:,:,pq) = C(:,:,q);
+            Cinv(:,:,pq) = Cinv(:,:,q);
         else
-            C(:,:,m) = zeros(9,9);
-            Cinv(:,:,m) = zeros(9,9);
+            C(:,:,pq) = zeros(9,9);
+            Cinv(:,:,pq) = zeros(9,9);
         end
 
         doth(edge) = dhpq;
     end
-    
+
     [dv,dh] = UpdateVol(doth,dt);
     vol = vol + dv;
     for i = 1:N-edges
@@ -157,12 +159,21 @@ plot([1 tf],[1 1]*phi0)
 plot([1 tf],-[1 1]*phi0)
 title('dA^*/dh_{pq}')
 hold off
+
+figure(6)
+hold on
+plot(phi_hs(:,1))
+plot(phi_hs(:,2))
+plot(phi_hs(:,3))
+title('dA^*/dh_{pq}')
+hold off
         
 function [vol, h] = UpdateVol(dh,dt)
 global N Vtot C Cinv v Fgb F0  a D Aa I
 
-    h = dh.*dt;
-    Ah = full(adjacency(D,h)); 
+    h = dh.*dt; ha = abs(h);
+    Ah = full(adjacency(D,h));
+    Aha = full(adjacency(D,ha));
     counter = 1;
     for i = 2:2:N
        v(i) = v(i) + a(counter)*h(counter); 
@@ -172,8 +183,9 @@ global N Vtot C Cinv v Fgb F0  a D Aa I
     gimal = -Aa' + Aa;
     gimal_p = Aa' + Aa;
     gimal_h = Ah + Ah';
+    gimal_ha = Aha + Aha';
     
-    dV = -1/2*(gimal_h*gimal_p + gimal_h*gimal);
+    dV = -1/2*(gimal_ha*gimal_p + gimal_h*gimal);
     dV = diag(dV);
     counter = 1;
     for i = 1:2:N
@@ -193,22 +205,17 @@ global N Vtot C Cinv v Fgb F0  a D Aa I
 end
 
 function [dhpq, dhqp] = Gethdot(Fstr,P0,i,vol)
-    global N Vtot C Cinv  Fgb F0 a12 xi_inv edges alpha
+    global N Vtot C Cinv  Fgb F0 a12 xi_inv edges alpha ss tt
    
     Fstardh_ana = zeros(3,3,N-edges);
     dhpq = 0; dhqp = 0; I = [1;0;0;0;1;0;0;0;1];
     % ****** vm < 0 ******
     pq = i*2;
     counter = 1;
-    
+    qs = ss*2 - 1; ps = tt*2 - 1; 
     for pp = 1:edges
-            
-        m = pp*2; q = m - 1; p = m + 1;
         
-        if(p > N)
-            p = 1;
-        end
-        
+        p = ps(pp); q = qs(pp);  
         C_diff = eye(9) - Cinv(:,:,p)*C(:,:,q);
         dfstar_dhpq = -xi_inv(:,:,q)^2*(C_diff)*alpha(:,:,q) + xi_inv(:,:,q)*(I-Fgb(:,:,pq) + C_diff*Fgb(:,:,q));
 
@@ -235,10 +242,7 @@ function [dhpq, dhqp] = Gethdot(Fstr,P0,i,vol)
     end
    
 
-    m = i*2; q = m - 1; p = m + 1;
-    if(p > N)
-        p = 1;
-    end
+    p = ps(i); q = qs(i); 
     Fdiff = Fstr(:,:,q)-Fstr(:,:,p);
 
     Fdiff = reshape(Fdiff,[3,3]);
