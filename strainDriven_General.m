@@ -1,54 +1,73 @@
 clear all
-global N Vtot C_v Cinv_v v_v xi_inv_v alpha_v Fgb_v C_e Cinv_e v_e Fgb_e F0 edges D Aa I ss tt
+global N Vtot C Cinv v xi_inv alpha Fgb F0 edges D Aa I grain_map edge_map ss tt a
 
 load C:\Users\icrma\Documents\Matlab\mtex-5.8.0\userScripts\GrainData2.mat
 N = 61; edges = 41;
 Vtot = sum(Grain_vol);
+% s = [1 1 1 1 2 2 3 3 3 4 4 4 5 5 6 7 7 8 8 9 10 10 10 10 11 11 12 13 13 14 14 15 16 17 17 17 17 18 19 19 20]';
+% t = [2 3 4 5 3 18 4 17 18 5 8 11 6 8 7 8 10 10 11 7 12 15 16 9 10 12 13 10 14 10 15 16 9 4 11 19 20 17 18 20 11]';
+
+ c = unique(s); % the unique values in s  
+ grain_map = zeros(N-edges,3);
+ edge_map = zeros(edges,1);
+ for i = 1:length(c)
+     grain_map(i,1) = c(i); % vertex number
+     grain_map(i,2) = sum(s==c(i)); % number of times each unique value is repeated
+     grain_map(i,3) = sum(grain_map(1:i-1,2)) + grain_map(i,1); % coresponding vertex index in N-arrays
+ end
+ counter = 2; temp = cumsum(grain_map(:,2)) + grain_map(:,1);
+ counter2 = 1;
+ for i = 1:edges
+     edge_map(i) = counter; % coresponding edge index in N-arrays
+     if(counter == temp(counter2))
+         counter = counter + 1;
+         counter2 = counter2 + 1;
+     end
+     counter = counter + 1;
+ end
 
 F0 = [1,.1 ,0;
       0, 1 ,0;
       0, 0 ,1];
-Fgb_v = zeros(9,1,N-edges);Fgb_e = zeros(9,1,edges);
-xi_inv_v = zeros(9,9,N-edges); 
-alpha_v = zeros(9,1,N-edges); 
-[C_v,Cinv_v,v_v] = init(phi1,Phi,phi2,Grain_vol);
+Fgb = zeros(9,1,N);
+xi_inv = zeros(9,9,N-edges); 
+alpha= zeros(9,1,N-edges); 
+[C,Cinv,v,Fgbt] = init(phi1,Phi,phi2,Grain_vol,Fpq,grain_map, edge_map);
 F0 = reshape(F0, [9,1]);
-th_gb = 0;Fgbt = zeros(3,3,edges);
+th_gb = 0;
 for i = 1:edges
     rot1 = [1 0 0;
         0 cos(th_gb) sin(th_gb);
         0 -sin(th_gb) cos(th_gb)];
-    Fgbt(:,:,i) = rot1'*Fpq(:,:,i)*rot1;
-    Fgb_e(:,:,i) = reshape(Fgbt(:,:,i), [9,1]);
+    index = edge_map(i);
+    Fgbt(:,:,index) = rot1'*Fgbt(:,:,index)*rot1;
 end
-for i = 1:N-edges
-    Fgb_v(:,:,i) = reshape(eye(3), [9,1]);
+for i = 1:N
+    Fgb(:,:,i) = reshape(Fgbt(:,:,i), [9,1]);
 end
 
-%% Tricrystal
+%% 20-grains
 
-dt = 1e-4;
+dt = 2e-5;
 tf = floor(1/dt);
 
 ss = s;
 tt = t;
 D = digraph(ss,tt);
+I = full(incidence(D));
 
 dhpq = 0; dhqp = 0; doth = zeros(edges,1);
 h = zeros(tf,edges);
 V = zeros(tf,N-edges);
-counter = 1;
-for i = 1:2:N-edges
-    V(1,counter) = v(i);
-    counter = counter + 1;
+for i = 1:N-edges
+    p = grain_map(i,3);
+    V(1,i) = v(p);
 end
-vol = [v(1); v(3); v(5)];
+vol = Grain_vol;
 V0 = vol; V(1,:) = V0;
-phi1 = 0.006;
-phi0 = 0.2;
 
-stress = zeros(tf,1);
-strain = zeros(tf,1);
+% stress = zeros(tf,1);
+% strain = zeros(tf,1);
 time = zeros(tf,1);
 
 AA = zeros(tf,edges);
@@ -56,42 +75,48 @@ AA = zeros(tf,edges);
 n = .3;
 m = 20;
 phi_h1 = .5;
-phi_h2 = 10;
-kappa = [1.6/0.3750; 2.36/0.3750; 1.1/0.3750];
+phi_h2 = 50;
+for i = 1:edges
+    p = grain_map(ss(i)); q = grain_map(tt(i));
+    vv = [Grain_vol(p);Grain_vol(q)];
+    kappa = (rand(edges,1)*2+1.1)/min(vv);
+end
 
 phi_hs = zeros(tf,3); 
+phi11 = phi11*5;
+% phi0 = phi0;
 for t = 1:tf
     
-    F0(4) = .2*t/tf;
+    F0(4) = .05*t/tf;
     
     Fstar = FstarAnalytic();
     P0 = GetP0(Fstar);
     for edge = 1:edges
     
-        q = ss(edge)*2-1; p = tt(edge)*2-1;
+        p = grain_map(ss(edge)); q = grain_map(tt(edge));  
         [dFpq, dFqp] = Gethdot(Fstar,P0,edge,vol);
 
-        phi_h = phi_h1*abs(h(t,edge))^n + phi_h2*abs(h(t,edge)*kappa(edge))^m;
-        dhpq = -1/phi1*(dFpq + phi0 + phi_h);
-        dhqp = -1/phi1*(dFqp - phi0 - phi_h);
+        phi_h = phi_h1*abs(h(t,edge)/kappa(edge))^n + phi_h2*abs(h(t,edge)*kappa(edge))^m;
+        dhpq = -1/phi11(edge)*(dFpq + phi0(edge) + phi_h);
+        dhqp = -1/phi11(edge)*(dFqp - phi0(edge) - phi_h);
 
         AA(t+1,edge) = dFqp;
         phi_hs(t+1,edge) = phi_h;
-
-        if(h(t,edge) < -V0(ss(edge))/a(edge) || h(t,edge) > V0(tt(edge))/a(edge))
+        
+        veff = h(t,edge)*a(edge);
+        if(veff < -vol(ss(edge)) || veff > vol(tt(edge)))
             dhpq = 0;
             dhqp = 0;
         end
-        if(dhpq < 0); 
+        if(veff > vol(ss(edge)) || veff < -vol(tt(edge)))
             dhpq = 0;
-        end
-
-        if(dhqp > 0); 
             dhqp = 0;
-        elseif(dhqp < 0); 
-            dhpq = dhqp;
         end
-        pq = edge*2;
+        if(dhpq < 0); dhpq = 0; end
+        if(dhqp > 0); dhqp = 0;
+        elseif(dhqp < 0); dhpq = dhqp;end
+
+        pq = edge_map(edge);
         if(v(pq) < 0)
             C(:,:,pq) = C(:,:,p);
             Cinv(:,:,pq) = Cinv(:,:,p);
@@ -110,6 +135,8 @@ for t = 1:tf
     vol = vol + dv;
     for i = 1:N-edges
         V(t+1,i) = vol(i);
+    end
+    for i = 1:edges
         h(t+1,i) = h(t,i) + dh(i);
     end
 
@@ -165,15 +192,15 @@ title('dA^*/dh_{pq}')
 hold off
         
 function [vol, h] = UpdateVol(dh,dt)
-global N Vtot C Cinv v Fgb F0  a D Aa I
+global N edges Vtot C Cinv v Fgb F0  a D Aa I grain_map edge_map
 
     h = dh.*dt; ha = abs(h);
     Ah = full(adjacency(D,h));
     Aha = full(adjacency(D,ha));
-    counter = 1;
-    for i = 2:2:N
-       v(i) = v(i) + a(counter)*h(counter); 
-       counter = counter + 1;
+    
+    for i = 1:edges % calculate Vpq
+       pq = edge_map(i);
+       v(pq) = v(pq) + a(i)*h(i);
     end
     
     gimal = -Aa' + Aa;
@@ -181,37 +208,38 @@ global N Vtot C Cinv v Fgb F0  a D Aa I
     gimal_h = Ah + Ah';
     gimal_ha = Aha + Aha';
     
-    dV = -1/2*(gimal_ha*gimal_p + gimal_h*gimal);
+    dV = -1/2*(gimal_ha*gimal_p + gimal*gimal_h);
     dV = diag(dV);
-    counter = 1;
-    for i = 1:2:N
-       v(i) = v(i) + dV(counter);
-       counter = counter + 1;
+    
+    for i = 1:N-edges % add dv to vertices
+       p = grain_map(i,3);
+%        if(v(p) <= 0)
+%            dV(i) = 0;
+%        end
+       v(p) = v(p) + dV(i);
     end
     
-    vol = I*h;
+    vol = -I*h; % volume of grains + quasi-grains
   
-  for i = 1:2:N
-      
-
-      if(v(i) < 0)
-         v(i) = 0;
-      end
-  end
+%   for i = 1:2:N 
+%       if(v(i) < 0)
+%          v(i) = 0;
+%       end
+%   end
 end
 
 function [dhpq, dhqp] = Gethdot(Fstr,P0,i,vol)
-    global N Vtot C Cinv  Fgb F0 a12 xi_inv edges alpha ss tt
+    global N Vtot C Cinv  Fgb F0 a12 xi_inv edges alpha grain_map edge_map ss tt
    
     Fstardh_ana = zeros(3,3,N-edges);
     dhpq = 0; dhqp = 0; I = [1;0;0;0;1;0;0;0;1];
     % ****** vm < 0 ******
-    pq = i*2;
+    pq = edge_map(i);
+    
     counter = 1;
-    qs = ss*2 - 1; ps = tt*2 - 1; 
-    for pp = 1:edges
-        
-        p = ps(pp); q = qs(pp);  
+    for pp = 1:N-edges
+        p = grain_map(ss(pp)); q = grain_map(tt(pp));  
+
         C_diff = eye(9) - Cinv(:,:,p)*C(:,:,q);
         dfstar_dhpq = -xi_inv(:,:,q)^2*(C_diff)*alpha(:,:,q) + xi_inv(:,:,q)*(I-Fgb(:,:,pq) + C_diff*Fgb(:,:,q));
 
@@ -220,25 +248,12 @@ function [dhpq, dhqp] = Gethdot(Fstr,P0,i,vol)
             
     end
 
-    if(mod(N,2) == 1)
-        
-        C_diff = eye(9) - Cinv(:,:,q)*C(:,:,p);
-        dfstar_dhpq = -xi_inv(:,:,p)^2*(C_diff)*alpha(:,:,p) + xi_inv(:,:,p)*(I - Fgb(:,:,pq) + C_diff*Fgb(:,:,p));
-
-        Fstardh_ana(:,:,end) = reshape(dfstar_dhpq,[3,3]);
-
+    Fstardh = zeros(3,3);
+    for j = 1:N-edges
+        Fstardh = Fstardh + Fstardh_ana(:,:,j)*vol(j);
     end
 
-
-    counter = 1; Fstardh = zeros(3,3);
-    for j = 1:2:(N-edges)*2
-        
-        Fstardh = Fstardh + Fstardh_ana(:,:,counter)*vol(counter);
-        counter = counter + 1;
-    end
-   
-
-    p = ps(i); q = qs(i); 
+    p = grain_map(ss(i)); q = grain_map(tt(i));  
     Fdiff = Fstr(:,:,q)-Fstr(:,:,p);
 
     Fdiff = reshape(Fdiff,[3,3]);
@@ -263,36 +278,31 @@ end
 
 
 function [Fstr] = FstarAnalytic()
-global N Vtot C_v Cinv_v v_v xi_inv_v alpha_v Fgb_v C_e Cinv_e v_e  Fgb_e F0 edges 
+    global N edges Vtot C Cinv v Fgb F0 xi_inv alpha grain_map
    
-    Fstr = zeros(9,1,N);
-%     for i = 1:edges
-%         
-%         xi_e = 
-%     end
+    Fstr = zeros(9,1,N-edges);
     for i = 1:N-edges
-        xi = v(i)*eye(9);
-        alpha_temp = Vtot*F0;
-        for j = 1:N-edges            
-            if(i == j)
-                continue
-            end
-
-            xi = xi + abs(v_v(j))*Cinv_v(:,:,j)*C_v(:,:,i);
-            alpha_temp = alpha_temp - v(j)*Fgb_v(:,:,j);
-        end
-        alpha_v(:,:,i) = alpha_temp + (xi-v(i)*eye(9))*Fgb_v(:,:,i);
-        if(v(i) == 0)
-            Fstr(:,:,i) = Fgb_v(:,:,i);
-            xi_inv_v(:,:,i) = eye(9);
-        else
-            xi_inv_v(:,:,i) = xi\eye(9);
-            Fstr(:,:,i) = xi_inv_v(:,:,i)*alpha_v(:,:,i);
-        end
+        index = grain_map(i,3);
        
+        xi = v(index)*eye(9);
+        alpha_temp = Vtot*F0;
+        for j = 1:N            
+            if(i == j);continue; end        
+            xi = xi + abs(v(j))*Cinv(:,:,j)*C(:,:,index);
+            alpha_temp = alpha_temp - v(j)*Fgb(:,:,j);
+        end
+        alpha(:,:,i) = alpha_temp + (xi-v(index)*eye(9))*Fgb(:,:,index);
+        if(v(i) == 0)
+            Fstr(:,:,i) = Fgb(:,:,index);
+            xi_inv(:,:,i) = eye(9);
+        else
+            xi_inv(:,:,i) = xi\eye(9);
+            Fstr(:,:,i) = xi_inv(:,:,i)*alpha(:,:,i);
+        end
     end
    
 end
+
 function [C,Cinv] = SetC(p1,p,p2)
 
     C11 = 169.3097; C12 = 122.5; C44 = 76;
@@ -353,34 +363,40 @@ function [C,Cinv] = SetC(p1,p,p2)
 end
 
 function val = del(i,j)
-   
-    if(i == j)
-        val = 1;
-    else
-        val = 0;
-    end
+
+    if(i == j); val = 1;
+    else; val = 0;end
 end
 function P = GetP0(Fstr)
-    global N Vtot C Fgb v
+    global N edges Vtot C Fgb v grain_map
     
     P = zeros(9,1);
-    for i = 1:N
-        
-        P = P + abs(v(i))/Vtot*C(:,:,i)*(Fstr(:,:,i)-Fgb(:,:,i));
+    for i = 1:N-edges
+        index = grain_map(i,3);
+        if(v(index) <= 0)
+            continue
+        else
+            P = P + C(:,:,index)*(Fstr(:,:,i)-Fgb(:,:,index));
+            break
+        end
     end
 end
-function [CC,CCinv,v,Fgb] = init(p1,p,p2,vol)
+function [CC,CCinv,v,Fgb] = init(p1,p,p2,vol,Fpq,v_map,e_map)
     global N Vtot edges
    
-    CC = zeros(9,9,N-edges);
-    CCinv = CC; v = zeros(N-edges,1); Fgb = zeros(3,3,N-edges);
+    CC = zeros(9,9,N);
+    CCinv = CC; v = zeros(N,1); Fgb = zeros(3,3,N);
     for i = 1:N-edges
-       
-      [CC(:,:,i),CCinv(:,:,i)] = SetC(p1(i),p(i),p2(i));
+      index = v_map(i,3);
+      [CC(:,:,index),CCinv(:,:,index)] = SetC(p1(i),p(i),p2(i));
         
-      v(i) = vol(i);
-      Fgb(:,:,i) = eye(3);
-
+      v(index) = vol(i);
+      Fgb(:,:,index) = eye(3);
     end
-
+    for i = 1:edges
+        index = e_map(i);
+        Fgb(:,:,index) = Fpq(:,:,i);
+%         Fgb(:,:,index) = eye(3);
+%         Fgb(1,2,index) = rand(1)*2-1;
+    end
 end
