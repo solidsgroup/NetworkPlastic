@@ -51,15 +51,15 @@ end
 
 dt = 2e-5;
 tf = floor(1/dt);
-
+endt = 10000;
 ss = s;
 tt = t;
 D = digraph(ss,tt);
 I = full(incidence(D));
 
 dhpq = 0; dhqp = 0; doth = zeros(edges,1);
-h = zeros(tf,edges);
-V = zeros(tf,N-edges);
+h = zeros(endt,edges);
+V = zeros(endt,N-edges);
 for i = 1:N-edges
     p = grain_map(i,3);
     V(1,i) = v(p);
@@ -67,11 +67,9 @@ end
 vol = Grain_vol';
 V0 = vol; V(1,:) = V0;
 
-% stress = zeros(tf,1);
-% strain = zeros(tf,1);
-time = zeros(tf,1);
-
-AA = zeros(tf,edges);
+stress = zeros(endt,1);
+strain = zeros(endt,1);
+time = zeros(endt,1);
 
 n = .3;
 m = 20;
@@ -82,13 +80,12 @@ for i = 1:edges
     vv = [Grain_vol(p);Grain_vol(q)];
     kappa = (rand(edges,1)*2+.11)/min(vv);
 end
-
-phi_hs = zeros(tf,3); 
+ 
 phi11 = phi11*5; 
-phi0 = rand(edges,1)*.1+.7;
-for t = 1:tf
+phi0 = rand(edges,1)*.1+.7; %phi0(13) = 25;
+for t = 1:endt
     
-    F0(4) = .1*t/tf;
+    F0(4) = .08*t/tf;
     
     Fstar = FstarAnalytic();
     P0 = GetP0(Fstar);
@@ -100,16 +97,17 @@ for t = 1:tf
         phi_h = phi_h1*abs(h(t,edge)/kappa(edge))^n + phi_h2*abs(h(t,edge)*kappa(edge))^m;
         dhpq = -1/phi11(edge)*(dFpq + phi0(edge) + phi_h);
         dhqp = -1/phi11(edge)*(dFqp - phi0(edge) - phi_h);
-
-        AA(t+1,edge) = dFqp;
-        phi_hs(t+1,edge) = phi_h;
         
-        veff = h(t,edge)*a(edge);
-        if(veff < -vol(ss(edge)) || veff > vol(tt(edge)))
-            dhpq = 0;
-            dhqp = 0;
-        end
-        if(veff > vol(ss(edge)) || veff < -vol(tt(edge)))
+%         veff = h(t,edge)*a(edge);
+%         if(veff < -vol(ss(edge)) || veff > vol(tt(edge)))
+%             dhpq = 0;
+%             dhqp = 0;
+%         end
+%         if(veff > vol(ss(edge)) || veff < -vol(tt(edge)))
+%             dhpq = 0;
+%             dhqp = 0;
+%         end
+        if(vol(ss(edge)) <= 0 || vol(tt(edge)) <= 0)
             dhpq = 0;
             dhqp = 0;
         end
@@ -170,19 +168,6 @@ plot(strain,stress,'LineWidth',1.3)
 xlabel('Strain')
 ylabel('Stress')
 grid on
-figure(5)
-hold on
-plot(AA)
-% plot([1 tf],[1 1]*phi0)
-% plot([1 tf],-[1 1]*phi0)
-title('dA^*/dh_{pq}')
-hold off
-
-figure(6)
-hold on
-plot(phi_hs(:,:))
-title('dA^*/dh_{pq}')
-hold off
         
 function [vol, h] = UpdateVol(dh,dt)
 global N edges Vtot C Cinv v Fgb F0  a D Aa I grain_map edge_map
@@ -234,7 +219,7 @@ function [dhpq, dhqp] = Gethdot(Fstr,P0,i,vol)
         p = grain_map(ss(pp),3); q = grain_map(tt(pp),3);  
 
         C_diff = eye(9) - Cinv(:,:,p)*C(:,:,q);
-        dfstar_dhpq = -xi_inv(:,:,q)^2*(C_diff)*alpha(:,:,q) + xi_inv(:,:,q)*(I-Fgb(:,:,pq) + C_diff*Fgb(:,:,q));
+        dfstar_dhpq = -xi_inv(:,:,tt(pp))^2*(C_diff)*alpha(:,:,tt(pp)) + xi_inv(:,:,tt(pp))*(I-Fgb(:,:,pq) + C_diff*Fgb(:,:,q));
 
         Fstardh_ana(:,:,counter) = reshape(dfstar_dhpq,[3,3]);
         counter = counter + 1;
@@ -246,7 +231,7 @@ function [dhpq, dhqp] = Gethdot(Fstr,P0,i,vol)
         Fstardh = Fstardh + Fstardh_ana(:,:,j)*vol(j);
     end
 
-    p = grain_map(ss(i),3); q = grain_map(tt(i),3);  
+    p = ss(i); q = tt(i);  
     Fdiff = Fstr(:,:,q)-Fstr(:,:,p);
 
     Fdiff = reshape(Fdiff,[3,3]);
