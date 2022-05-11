@@ -1,8 +1,9 @@
 clear all
 global N Vtot C Cinv v xi_inv alpha Fgb F0 edges D Aa I grain_map edge_map ss tt a
 
-load C:\Users\icrma\Documents\Matlab\mtex-5.8.0\userScripts\GrainData2.mat
-N = 61; edges = 41;
+% load C:\Users\icrman\Documents\Matlab\mtex-5.8.0\userScripts\GrainData2.mat
+load C:\Users\icrman\Documents\MATLAB\NetworkPlasticity\GrainData2.mat
+N = 62; edges = 42;
 Vtot = sum(Grain_vol);
 % s = [1 1 1 1 2 2 3 3 3 4 4 4 5 5 6 7 7 8 8 9 10 10 10 10 11 11 12 13 13 14 14 15 16 17 17 17 17 18 19 19 20]';
 % t = [2 3 4 5 3 18 4 17 18 5 8 11 6 8 7 8 10 10 11 7 12 15 16 9 10 12 13 10 14 10 15 16 9 4 11 19 20 17 18 20 11]';
@@ -63,7 +64,7 @@ for i = 1:N-edges
     p = grain_map(i,3);
     V(1,i) = v(p);
 end
-vol = Grain_vol;
+vol = Grain_vol';
 V0 = vol; V(1,:) = V0;
 
 % stress = zeros(tf,1);
@@ -77,23 +78,23 @@ m = 20;
 phi_h1 = .5;
 phi_h2 = 50;
 for i = 1:edges
-    p = grain_map(ss(i)); q = grain_map(tt(i));
+    p = grain_map(ss(i),1); q = grain_map(tt(i),1);
     vv = [Grain_vol(p);Grain_vol(q)];
-    kappa = (rand(edges,1)*2+1.1)/min(vv);
+    kappa = (rand(edges,1)*2+.11)/min(vv);
 end
 
 phi_hs = zeros(tf,3); 
-phi11 = phi11*5;
-% phi0 = phi0;
+phi11 = phi11*5; 
+phi0 = rand(edges,1)*.1+.7;
 for t = 1:tf
     
-    F0(4) = .05*t/tf;
+    F0(4) = .1*t/tf;
     
     Fstar = FstarAnalytic();
     P0 = GetP0(Fstar);
     for edge = 1:edges
     
-        p = grain_map(ss(edge)); q = grain_map(tt(edge));  
+        p = grain_map(ss(edge),3); q = grain_map(tt(edge),3);  
         [dFpq, dFqp] = Gethdot(Fstar,P0,edge,vol);
 
         phi_h = phi_h1*abs(h(t,edge)/kappa(edge))^n + phi_h2*abs(h(t,edge)*kappa(edge))^m;
@@ -145,27 +146,23 @@ for t = 1:tf
     stress(t+1) = P0(4);
     strain(t+1) = F0(4);
 end
-
+%%
 figure(2)
 
 hold on
-plot(time,h(:,1),'--','LineWidth',1.3)
-plot(time,h(:,2),'LineWidth',1.3)
-plot(time,h(:,3),'LineWidth',1.3)
+plot(time,h,'--','LineWidth',1.3)
 xlabel('Time')
 ylabel('Boundary displacment')
-legend('h_{13}','h_{35}','h_{51}','Location','NorthWest')
+% legend('h_{13}','h_{35}','h_{51}','Location','NorthWest')
 grid on
 hold off
 
 figure(3)
 hold on
-plot(time,V(:,1),'LineWidth',1.3)
-plot(time,V(:,2),'LineWidth',1.3)
-plot(time,V(:,3),'LineWidth',1.3)
+plot(time,V,'LineWidth',1.3)
 xlabel('Time')
 ylabel('Volume')
-legend('V_1','V_3','V_5','Location','SouthEast')
+% legend('V_1','V_3','V_5','Location','SouthEast')
 grid on
 hold off
 figure(4)
@@ -175,19 +172,15 @@ ylabel('Stress')
 grid on
 figure(5)
 hold on
-plot(AA(:,1))
-plot(AA(:,2))
-plot(AA(:,3))
-plot([1 tf],[1 1]*phi0)
-plot([1 tf],-[1 1]*phi0)
+plot(AA)
+% plot([1 tf],[1 1]*phi0)
+% plot([1 tf],-[1 1]*phi0)
 title('dA^*/dh_{pq}')
 hold off
 
 figure(6)
 hold on
-plot(phi_hs(:,1))
-plot(phi_hs(:,2))
-plot(phi_hs(:,3))
+plot(phi_hs(:,:))
 title('dA^*/dh_{pq}')
 hold off
         
@@ -238,7 +231,7 @@ function [dhpq, dhqp] = Gethdot(Fstr,P0,i,vol)
     
     counter = 1;
     for pp = 1:N-edges
-        p = grain_map(ss(pp)); q = grain_map(tt(pp));  
+        p = grain_map(ss(pp),3); q = grain_map(tt(pp),3);  
 
         C_diff = eye(9) - Cinv(:,:,p)*C(:,:,q);
         dfstar_dhpq = -xi_inv(:,:,q)^2*(C_diff)*alpha(:,:,q) + xi_inv(:,:,q)*(I-Fgb(:,:,pq) + C_diff*Fgb(:,:,q));
@@ -253,7 +246,7 @@ function [dhpq, dhqp] = Gethdot(Fstr,P0,i,vol)
         Fstardh = Fstardh + Fstardh_ana(:,:,j)*vol(j);
     end
 
-    p = grain_map(ss(i)); q = grain_map(tt(i));  
+    p = grain_map(ss(i),3); q = grain_map(tt(i),3);  
     Fdiff = Fstr(:,:,q)-Fstr(:,:,p);
 
     Fdiff = reshape(Fdiff,[3,3]);
