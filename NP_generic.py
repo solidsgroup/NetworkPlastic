@@ -15,12 +15,15 @@ np.set_printoptions(edgeitems=30, linewidth=100000,
 s = np.array([1, 1, 1, 1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 7, 7, 8, 8, 9, 10, 10, 10, 10, 11, 11, 12, 13, 13, 14, 14, 15, 16, 17, 17, 17, 17, 18, 19, 19, 20])-1
 t = np.array([2, 3, 4, 5, 3, 18, 4, 17, 18, 5, 8, 11, 6, 8, 7, 8, 10, 10, 11, 7, 12, 15, 16, 9, 10, 12, 13, 10, 14, 10, 15, 16, 9, 4, 11, 19, 20, 17, 18, 20, 11])-1
 
+#s = np.array([1])-1
+#t = np.array([2])-1
+
 N = 20 + len(s)
 edges = len(s)
 Fpq = np.array([[1,0.5,0],[0,1,0],[0,0,1]])
 vol = np.ones((20,1))*1/20
 Vtot = 1
-a = np.linspace(1, edges,edges)
+a = np.ones((edges,1))*1/edges
 # initalize values
 F0 = np.array([[1,0.25,0],[0,1,0],[0,0,1]])
 F0 = F0.transpose().reshape((9,1))
@@ -124,25 +127,25 @@ def SetC(p1,p,p2):
                     
     return C, Cinv
 def FstarAnalytic():
-    Fstr = np.zeros([N-edges,9,1])
-    for i in range(0, N-edges):
+    Fstr = np.zeros([N-edges,9,1]) # formated to follow index notation mulitplication of C_{ijkl}F*_{kl}
+    for i in range(0, N-edges): # i or index = grain p
         # get (i) index from v map
         index = v_map[i]
-        xi = v[index]*np.eye(9)
+        xi = v[index]*np.eye(9) 
         alpha_temp = Vtot*F0
-        for j in range(0, N):
-            if(i == j):
+        for j in range(0, N): # sum over q in graph
+            if(i == j): # p cannot equal q
                 continue
-            xi += abs(v[j])*np.matmul(Cinv[j],C[index])
+            xi += abs(v[j])*np.matmul(Cinv[j],C[index]) 
             alpha_temp -= v[j]*Fgb[j]
         temp = (xi - v[index]*np.eye(9))
-        alpha[i] = alpha_temp + np.matmul(temp,Fgb[index])
-        if(v[i] == 0):
+        alpha[i] = alpha_temp + np.matmul(temp,Fgb[index]) # save alpha for use in Gethdot() function
+        if(v[i] == 0): # if zero its an edge or vertex that does not exsit
             Fstr[i] = Fgb[index]
-            xi_inv[i] = np.eye(9)
+            xi_inv[i] = np.eye(9) # save xi_inv for use in Gethdot() function
         else:
-            xi_inv[i] = np.linalg.inv(xi)
-            Fstr[i] = np.matmul(xi_inv[i],alpha[i])
+            xi_inv[i] = np.linalg.inv(xi) # save xi_inv for use in Gethdot() function
+            Fstr[i] = np.matmul(xi_inv[i],alpha[i]) # save xi_inv for use in Gethdot() function
     return Fstr
 def GetP0(Fstr,vol):
     for i in range(0, N-edges):
@@ -171,10 +174,10 @@ def Gethdot(Fstr,P0,edge,vol):
         alpha_dh = II - Fgb[pq] + np.matmul(C_diff,Fgb[q])
         dfstar_dhpq = -np.matmul(np.matmul(xiinv2,C_diff),alpha[q]) + np.matmul(xi_inv[q],alpha_dh)
         alpha_dh = -II + Fgb[pq] + np.matmul(C_diff,Fgb[q])
-        dfstar_dhpq = np.matmul(np.matmul(xiinv2,C_diff),alpha[q]) + np.matmul(xi_inv[q],alpha_dh)
+        dfstar_dhqp = np.matmul(np.matmul(xiinv2,C_diff),alpha[q]) + np.matmul(xi_inv[q],alpha_dh)
         
         Fstardh_ana_pq[pp] = dfstar_dhpq.reshape((3,3)).transpose()
-        Fstardh_ana_qp[pp] = dfstar_dhpq.reshape((3,3)).transpose()
+        Fstardh_ana_qp[pp] = dfstar_dhqp.reshape((3,3)).transpose()
         
     Fstardh_pq = np.zeros([3,3])
     Fstardh_qp = np.zeros([3,3])
@@ -195,7 +198,7 @@ def Gethdot(Fstr,P0,edge,vol):
             dhpq += (1/2*F_diff[i,j] + Fstardh_pq[i,j])*P0[i,j]     
     for i in range(0, 3):
         for j in range(0, 3):
-            dhqp += (-1/2*F_diff[i,j] + Fstardh_qp[i,j])*P0[i,j]
+            dhqp += (-1/2*F_diff[i,j] - Fstardh_qp[i,j])*P0[i,j]
             
     return dhpq, dhqp
 def UpdateVol(dh, dt):
@@ -229,19 +232,24 @@ I = incidence(s,t,a)
 p1 = np.random.standard_normal(N-edges)
 p = np.random.standard_normal(N-edges)
 p2 = np.random.standard_normal(N-edges)
+#p1 = np.array([1.3727, 1.3727/2.0])
+#p =  np.array([-0.6121, -0.6121/2.0])
+#p2 =  np.array([-0.9667, -0.9667/2.0])
 C,Cinv, v, Fgbt = init(p1,p,p2,vol,Fpq)
 for i in range(0, N):
     Fgb[i] = Fgbt[i].transpose().reshape((9,1))
     
     
 #Fstar = FstarAnalytic()
+#P0 = GetP0(Fstar, vol)
+#dhpq, dhqp = Gethdot(Fstar, P0, 0, vol)
 
 #Fstar[0]*0.5 + Fstar[1]*0.5 - Vtot*F0
 #np.matmul(C[0],(Fstar[0]-Fgb[0])) - np.matmul(C[1],(Fstar[1]-Fgb[1]))
 
 dt = 2e-5
 tf = np.floor(1/dt)
-endt = 4005
+endt = 10000
 time = np.zeros([endt,1])
 Aa = adjacency(s, t, a)
 I = incidence(s, t, a)
@@ -276,7 +284,7 @@ phi0 = np.random.uniform(2.5,2.6,edges)
 dv = np.zeros([edges,1])
 dh = np.zeros([edges,1])
 for tt in range(0, endt):
-    F0[3] = 1*tt/tf
+    F0[3] = .2*tt/tf
     
     Fstar = FstarAnalytic()
     P0 = GetP0(Fstar, vol)
