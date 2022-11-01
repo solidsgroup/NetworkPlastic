@@ -1,28 +1,28 @@
 clear all
 global N Vtot C Cinv v xi_inv alpha Fgb F0 edges D Aa I grain_map edge_map ss tt a Neighbor_v Neighbor_e
-
+notes = '';
 % load C:\Users\icrman\Documents\Matlab\mtex-5.8.0\userScripts\GrainData2.mat
-load C:\Users\icrma\OneDrive\Documents\MATLAB\NetworkPlastic\GrainData_GBeng_v2.mat; fname = 'test_case20.mat';
+% load C:\Users\icrma\OneDrive\Documents\MATLAB\NetworkPlastic\GrainData_GBeng_v2.mat; fname = 'test_case20.mat';
 % load C:\Users\icrma\OneDrive\Documents\MATLAB\NetworkPlastic\GrainData_GB_NONeng_v2.mat; fname = 'GBresults_GB_NONeng_v2.mat';
-% load microstructureData_500.mat
+load microstructureData_Bimodal_N3.mat
 
 % ******** Bicrystal init
 % need to change last val in init function to use "th" and e1 e2 e3 in setC
-% s = 1;t = 2;
-% Grain_vol = [0.5; 0.5]; a = 1;
-% ph_i1 = [pi/12 -pi/12]; Ph_i = [pi/8 -pi/8]; ph_i2 = [pi/10 -pi/10];
-% th = [-pi/6 pi/6];
+% s = 1;t = 2; notes = 'Bicrystal';
+% Grain_vol = [0.5 0.5]; a = 1;
+% ph_i1 = [pi/12 -pi/12].*rand(2,1); Ph_i = [pi/8 -pi/8].*rand(2,1); ph_i2 = [pi/10 -pi/10].*rand(2,1);
+% th = [-53.1301/2 53.1301/2]*pi/180; % sigma 5 GB
 % phi1 = .005; phi0 = 0.6;
 % Fpq = [1 -0.8 0;
 %        0 1 0;
 %        0 0 1];
-% th_gb = 50*pi/180;
+% th_gb = 0*pi/180;
 % rot1 = [cos(th_gb) 0 -sin(th_gb);
 %         0  1  0;
 %      sin(th_gb) 0 cos(th_gb)];
 % Fpq = rot1'*Fpq*rot1;
 % ******** Tricrystal vert
-% s = [1 2]; t = [2 3];
+% s = [1 2]; t = [2 3]; notes = 'TricrystalVert';
 % Grain_vol =[1/3; 1/3;1/3]; a = [0.5 0.5];
 % ph_i1 = [0 -pi/12 pi/5]; Ph_i = [0 -pi/8 pi/4]; ph_i2 = [0 -pi/10 pi/7];
 % th = [-pi/6 pi/6 pi/6];
@@ -34,7 +34,7 @@ load C:\Users\icrma\OneDrive\Documents\MATLAB\NetworkPlastic\GrainData_GBeng_v2.
 %        0 1 0;
 %        0 0 1];
 % % ******** 5 stack crystal vert
-% s = [1 2 3 4]; t = [2 3 4 5];
+% s = [1 2 3 4]; t = [2 3 4 5]; notes = '5Stack';
 % Grain_vol =[1/5; 1/5; 1/5; 1/5; 1/5]; a = [0.5 0.5 0.5 0.5];
 % ph_i1 = [pi/12 -pi/12 pi/12 -pi/12 pi/12].*rand(1,5); Ph_i = [pi/8 -pi/8 pi/8 -pi/8 pi/8].*rand(1,5); ph_i2 = [pi/10 -pi/10 pi/10 -pi/10 pi/10].*rand(1,5);
 % th = [-pi/6 pi/6 pi/6];
@@ -52,7 +52,7 @@ load C:\Users\icrma\OneDrive\Documents\MATLAB\NetworkPlastic\GrainData_GBeng_v2.
 %        0 1 0;
 %        0 0 1];
 % ******** Tricrystal triple point
-% s = [1 2 3]; t = [2 3 1];
+% s = [1 2 3]; t = [2 3 1]; notes = 'TriplePoint';
 % ph_i1 = [pi/12 -pi/12 pi/8]; Ph_i = [pi/8 -pi/8 pi/12]; ph_i2 = [pi/10 -pi/10 pi/6];
 % a = [1/2 sqrt(5)/4 sqrt(5)/4];
 % Grain_vol = [3/16*2 ; 3/16*2; 1/8*2]; % rect. base = 1 height = .5
@@ -74,12 +74,8 @@ load C:\Users\icrma\OneDrive\Documents\MATLAB\NetworkPlastic\GrainData_GBeng_v2.
 % Fpq(:,:,3) = rot1*Fpq(:,:,3)*rot1';
 
 N = length(s)+length(Grain_vol); edges = length(s); 
-% Grain_vol = Grain_vol./sum(Grain_vol)*1.7419; a = a./sum(a)*3.0354;
 Grain_vol = Grain_vol./sum(Grain_vol); a = a./sum(a);
-% Grain_vol = Grain_vol./sum(Grain_vol)*0.05; a = a./sum(a)*0.05;
 Vtot = sum(Grain_vol);
-% s = [1 1 1 1 2 2 3 3 3 4 4 4 5 5 6 7 7 8 8 9 10 10 10 10 11 11 12 13 13 14 14 15 16 17 17 17 17 18 19 19 20]';
-% t = [2 3 4 5 3 18 4 17 18 5 8 11 6 8 7 8 10 10 11 7 12 15 16 9 10 12 13 10 14 10 15 16 9 4 11 19 20 17 18 20 11]';
 
 grain_map = 1:N-edges;
 edge_map = N-edges+1:N;
@@ -128,7 +124,7 @@ for vertex = 1:N-edges
 end
 % GetGammaS(Grain_vol)
 
-vol = Grain_vol';
+vol = Grain_vol;
 V0 = vol; V(1,:) = V0;
 
 stress = zeros(endt,1);
@@ -136,16 +132,16 @@ strain = zeros(endt,1);
 time = zeros(endt,1);
 
 n = .3;
-m = 5;
-phi_h1 = .003;
-phi_h2 = .002;
+m = 10;
+phi_h1 = .003*0;
+phi_h2 = 2e-5;
 for i = 1:edges
     p = grain_map(ss(i)); q = grain_map(tt(i));
     vv = [v(p);v(q)];
-    if(rand(1,1) < 1)
+    if(rand(1,1) < 0)
         kappa(i) = 0;
     else
-        kappa(i) = 1/(a(i)*min(vv))*2;
+        kappa(i) = 1/(a(i)*min(vv))*0.005;
     end
 end
 aeff = a;
@@ -209,7 +205,7 @@ for t = 1:endt
         end
 
     end
-
+    
     [dv,dh,stp_e,stp_v] = UpdateVol(doth,dt);
     vol = vol + dv;
     for i = 1:N-edges
@@ -227,15 +223,14 @@ for t = 1:endt
     if(mod(t,100) == 0)
         fprintf('t = %f\n',t)
     end
-
+    
     [stp_e,stp_v] = stop(vol);
-    if(abs(P0(4)) < 0)
-        fprintf('STOP! t = %f\n',t)
-        break
-    end
+%     if(P0(4) < 0)
+%         fprintf('STOP! t = %f\n',t)
+%         break
+%     end
     for i = 1:N-edges
         for j = 1:9
-            
             A(t,i) = A(t,i) + Fstar(j,:,i)*P0(j);
         end
     end
@@ -267,7 +262,34 @@ xlabel('Strain')
 ylabel('Stress')
 grid on
 hold off 
-save GBresults_GBeng_test_80.mat stress strain V time h stress_shearMap A
+
+%%
+np = pwd;
+cd 'C:\NP_results'
+fname = append('Results',num2str(randi([1 90000],1,1)));
+fname = append(fname,append('_g',num2str(length(Grain_vol))));
+fname = append(fname,notes);
+np_data_dir = append('C:\NP_results\',fname);
+mkdir(fname)
+cd(fname)
+save GBresults.mat stress strain V time h stress_shearMap A
+save input.mat a Fpq ph_i1 Ph_i ph_i2 phi0 phi1 s t
+polymap = 'poly'; polymap = append(polymap,append('_',num2str(length(Grain_vol))));
+polymap = append(polymap,'.mat');
+cd(np)
+if(isfile(polymap))
+    copyfile(polymap,np_data_dir)
+else
+    polymap = 'Poly_N*';
+    polymap = append(polymap,append('_g',num2str(length(Grain_vol))));
+    polymap = append(polymap,'.mat');
+    list = dir(polymap);
+    if(~isempty(list))
+        copyfile(list.name,np_data_dir)
+    else
+        disp('no poly.mat file found')
+    end
+end
 % save GBresults_bicrystal_90.mat stress strain V time h stress_shearMap A
 
 % save GBresults_500_full.mat stress strain V time h stress_shearMap
@@ -303,12 +325,11 @@ global N edges Vtot C Cinv v Fgb F0  a D Aa I grain_map edge_map
        v(pq) = v(pq) + a(i)*h(i);
     end
     
-    gimal = -Aa' + Aa;
-    gimal_p = Aa' + Aa;
-    gimal_h = Ah + Ah';
-    gimal_ha = Aha + Aha';
+    gimal = (Aa' + Aa);
+    gimal_h = (Ah - Ah');
+    gimal_ha = (Aha + Aha');
     
-    dV = -1/2*(gimal_ha*gimal_p + gimal_h*gimal);
+    dV = -1/2*(gimal_ha + gimal_h')*gimal;
     dV = diag(dV);
     
     for i = 1:N-edges % add dv to vertices
@@ -341,76 +362,12 @@ function [dhpq, dhqp] = Gethdot_Neighbors(Fstr,P0,i,vol)
     counter = 1;
 
     pi = tt(i); qi = ss(i);
-    C_diff = (Cinv(:,:,qi)-Cinv(:,:,pi)); 
+    C_diff = (Cinv(:,:,pi)-Cinv(:,:,qi)); 
 
-    XI =  vol(qi)*xi_inv(:,:,qi)*(Cinv(:,:,pi)*C(:,:,qi) - eye(9))*Fstr(:,:,qi) + vol(pi)*xi_inv(:,:,pi)*(eye(9) - Cinv(:,:,qi)*C(:,:,pi))*Fstr(:,:,pi)...
-        + (eye(9)-vol(qi)*xi_inv(:,:,qi)-vol(pi)*xi_inv(:,:,pi))*C_diff*(P0 + C(:,:,1)*Ii);
+    XI = (Cinv(:,:,pi)-Cinv(:,:,qi))*(P0 + C(:,:,1)*Fgb(:,:,1)); 
     Fstardh_ana_pq = (Ii - Fgb(:,:,pq));
     Fstardh_ana_pq = reshape(Fstardh_ana_pq,[3,3]);
     XI = reshape(XI,[3,3]);
-%     for pp = 1:length(V_e)
-%         p = tt(V_e(pp)); q = ss(V_e(pp)); m = grain_map(V_v(pp));
-%         if(p == pi || q == qi)
-%             continue
-%         end
-%         Fstardh_ana_pq = Fstardh_ana_pq - vol(m)*xi_inv(:,:,m)*C_diff*C(:,:,m)*xi_inv(:,:,m)*alpha(:,:,m);
-%     end
-%     Fstardh_ana_pq = reshape(Fstardh_ana_pq,[3,3]);
-%     for pp = 1:edges
-%         
-%         q = ss(pp); p = tt(pp);  
-%         ppq = edge_map(pp);
-%         
-%         C_diff = Cinv(:,:,p)*C(:,:,q);
-%         dfstarq_dhpq = -xi_inv(:,:,q)^2*(eye(9) - C_diff)*alpha(:,:,q) + xi_inv(:,:,q)*(-Fgb(:,:,pq) + C_diff*Fgb(:,:,q));
-%         Fstardh_ana_pq = Fstardh_ana_pq + vol(counter)*reshape(dfstarq_dhpq,[3,3]);
-%         counter = counter + 1;
-%     end
-%         q = ss(end); p = tt(end);  
-%         ppq = edge_map(end);
-%         
-%         C_diff = Cinv(:,:,q)*C(:,:,p);
-%         dfstarq_dhpq = -xi_inv(:,:,p)^2*(eye(9) - C_diff)*alpha(:,:,p) + xi_inv(:,:,p)*(-Fgb(:,:,pq) + C_diff*Fgb(:,:,p));
-%         Fstardh_ana_pq = Fstardh_ana_pq + vol(counter)*reshape(dfstarq_dhpq,[3,3]);
-%         counter = counter + 1;
-        
-%         Fstardh_num = Numbericaldfdh(i,h);
-%         for j = 1:N-edges
-%             Fstardh_num_pq = Fstardh_num_pq + vol(j)*reshape(Fstardh_num(:,:,j),[3,3]);
-%         end
-%     p_used = zeros(length(V_e),1)-1;
-%     q_used = zeros(length(V_e),1)-1;
-%     for pp = 1:length(V_e)
-%         q = ss(V_e(pp)); p = tt(V_e(pp));  
-%         ppq = edge_map(V_e(pp));
-%         
-%         if(all(q_used ~= q))
-%             C_diff = Cinv(:,:,q)*C(:,:,p);
-%     %         dfstarq_dhpq = xi_inv(:,:,q)*(C_diff*Fgb(:,:,p)-Fgb(:,:,ppq)-I) - xi_inv(:,:,q)^2*(C_diff-eye(9))*alpha(:,:,q);
-%             dfstarq_dhpq = -xi_inv(:,:,q)^2*(eye(9) - C_diff)*alpha(:,:,q) + xi_inv(:,:,q)*(-Fgb(:,:,pq) + C_diff*Fgb(:,:,q));
-%     
-%             Fstardh_ana_q = reshape(dfstarq_dhpq,[3,3]);
-%             Fstardh_ana_pq = Fstardh_ana_pq + vol(q)*reshape(dfstarq_dhpq,[3,3]);
-%         end
-%         if(all(p_used~=p))
-%             C_diff = Cinv(:,:,p)*C(:,:,q);
-%             dfstarp_dhpq = -xi_inv(:,:,p)^2*(eye(9) - C_diff)*alpha(:,:,p) + xi_inv(:,:,p)*(-Fgb(:,:,pq) + C_diff*Fgb(:,:,p));
-%             
-%             Fstardh_ana_p = reshape(dfstarp_dhpq,[3,3]);
-%             Fstardh_ana_pq = Fstardh_ana_pq + vol(p)*reshape(dfstarp_dhpq,[3,3]);
-%     %         Fstardh_ana_qp(:,:,counter) = reshape(dfstar_dhqp,[3,3]);
-%         end
-%         p_used(pp) = p; q_used(pp) = q;   
-%     end
-
-
-%     Vol_v = vol(V_v)./sum(vol(V_v));
-%     Fstardh_pq = zeros(3,3); 
-% %     Fstardh_qp = zeros(3,3);
-%     for j = 1:length(V_e)
-%         Fstardh_pq = Fstardh_pq + Fstardh_ana_pq(:,:,j)*Vol_v(j);
-% %         Fstardh_qp = Fstardh_qp + Fstardh_ana_qp(:,:,j)*vol(j);
-%     end
 
     Fdiff = Fstr(:,:,qi)-Fstr(:,:,pi);
 
@@ -420,14 +377,12 @@ function [dhpq, dhqp] = Gethdot_Neighbors(Fstr,P0,i,vol)
     for k = 1:3
         for j = 1:3
             dhpq = dhpq + (1/2*Fdiff(k,j) + (Fstardh_ana_pq(k,j)+XI(k,j)))*P0(k,j);
-%               dhpq = dhpq + (1/2*Fdiff(k,j) + vol(q)*Fstardh_num_q(k,j) + vol(p)*Fstardh_num_p(k,j))*P0(k,j);
         end
     end
    
     for k = 1:3
         for j = 1:3
           dhqp = dhqp + (-1/2*Fdiff(k,j) + (Fstardh_ana_pq(k,j)+XI(k,j)))*P0(k,j);
-%             dhqp = dhqp + (-1/2*Fdiff(k,j) + vol(q)*Fstardh_num_q(k,j) + vol(p)*Fstardh_num_p(k,j))*P0(k,j);
         end
     end
    
@@ -528,11 +483,11 @@ end
 function [C,Cinv] = SetC(p1,p,p2,th)
 
     % Copper elastic constants
-    C11 = 169.3097; C12 = 122.5; C44 = 76; % cubic GPa
+%     C11 = 169.3097; C12 = 122.5; C44 = 76; % cubic GPa
 %     C11 = 169.3097; C12 = 87.2201 ; C44 = 41.0448; % Isotropic GPa
 
     % Aluminum elastic constants
-%     C11 = 116.3; C12 = 64.8; C44 = 30.9; % cubic GPa
+    C11 = 116.3; C12 = 64.8; C44 = 30.9; % cubic GPa
 
     S11 = (C11+C12)/((C11-C12)*(C11+2*C12));
     S12 = -C12/((C11-C12)*(C11+2*C12));
